@@ -28,34 +28,49 @@ add_action('admin_menu', 'mp_register_menu_page');
 
 function mp_admin_page() {
     global $wpdb;
-    $table_name = $wpdb->prefix . 'members'; // Adjust the table name to your table
+    $table_name = $wpdb->prefix . 'members'; // Adjust the table name to your actual table
     $members = $wpdb->get_results("SELECT * FROM $table_name");
+
+    // Check if we are editing a member
+    $edit_id = isset($_GET['edit_id']) ? intval($_GET['edit_id']) : null;
+    $member_to_edit = null;
+    if ($edit_id) {
+        $member_to_edit = $wpdb->get_row($wpdb->prepare("SELECT * FROM $table_name WHERE id = %d", $edit_id));
+    }
+
+    // Display success or delete messages
+    if (isset($_GET['success']) && $_GET['success'] == 'true') {
+        echo '<div class="alert alert-success">Operation successful!</div>';
+    }
+
+    if (isset($_GET['deleted']) && $_GET['deleted'] == 'true') {
+        echo '<div class="alert alert-success">Member deleted successfully!</div>';
+    }
     ?>
+
     <div class="container mt-5">
         <h1 class="display-4">Membership Dashboard</h1>
 
-        <?php if (isset($_GET['success']) && $_GET['success'] == 'true') : ?>
-            <div class="alert alert-success">New member added successfully!</div>
-        <?php endif; ?>
-
-        <!-- Add New Member Form -->
-        <h2>Add New Member</h2>
+        <!-- Show the form for adding a new member or editing an existing one -->
+        <h2><?php echo $member_to_edit ? 'Edit Member' : 'Add New Member'; ?></h2>
         <form action="<?php echo esc_url(admin_url('admin-post.php')); ?>" method="post">
-            <input type="hidden" name="action" value="add_member">
-            <?php wp_nonce_field('add_member_nonce', 'add_member_nonce_field'); ?>
+            <input type="hidden" name="action" value="<?php echo $member_to_edit ? 'edit_member' : 'add_member'; ?>">
+            <input type="hidden" name="member_id" value="<?php echo esc_attr($member_to_edit->id ?? ''); ?>">
+            <?php wp_nonce_field('member_nonce', 'member_nonce_field'); ?>
+
             <div class="mb-3">
                 <label for="name" class="form-label">Name</label>
-                <input type="text" class="form-control" id="name" name="name" required>
+                <input type="text" class="form-control" id="name" name="name" value="<?php echo esc_attr($member_to_edit->name ?? ''); ?>" required>
             </div>
             <div class="mb-3">
                 <label for="email" class="form-label">Email</label>
-                <input type="email" class="form-control" id="email" name="email" required>
+                <input type="email" class="form-control" id="email" name="email" value="<?php echo esc_attr($member_to_edit->email ?? ''); ?>" required>
             </div>
             <div class="mb-3">
                 <label for="membership_type" class="form-label">Membership Type</label>
-                <input type="text" class="form-control" id="membership_type" name="membership_type" required>
+                <input type="text" class="form-control" id="membership_type" name="membership_type" value="<?php echo esc_attr($member_to_edit->membership_type ?? ''); ?>" required>
             </div>
-            <button type="submit" name="submit" class="btn btn-primary">Add Member</button>
+            <button type="submit" class="btn btn-primary"><?php echo $member_to_edit ? 'Update Member' : 'Add Member'; ?></button>
         </form>
 
         <!-- Display Existing Members -->
@@ -79,7 +94,7 @@ function mp_admin_page() {
                             <td><?php echo esc_html($member->email); ?></td>
                             <td><?php echo esc_html($member->membership_type); ?></td>
                             <td>
-                                <a href="#" class="btn btn-warning btn-sm">Edit</a>
+                                <a href="<?php echo esc_url(admin_url('admin.php?page=membership-plugin&edit_id=' . $member->id)); ?>" class="btn btn-warning btn-sm">Edit</a>
                                 <a href="<?php echo esc_url(admin_url('admin-post.php?action=delete_member&id=' . $member->id)); ?>" class="btn btn-danger btn-sm" onclick="return confirm('Are you sure you want to delete this member?');">Delete</a>
                             </td>
                         </tr>
@@ -90,8 +105,10 @@ function mp_admin_page() {
             <p>No members found.</p>
         <?php endif; ?>
     </div>
+
     <?php
 }
+
 
 
 
@@ -190,3 +207,56 @@ function mp_handle_add_member() {
     }
 }
 add_action('admin_post_add_member', 'mp_handle_add_member');
+
+function mp_handle_edit_member() {
+    global $wpdb;
+
+    // Verify nonce
+    if (!isset($_POST['member_nonce_field']) || !wp_verify_nonce($_POST['member_nonce_field'], 'member_nonce')) {
+        wp_die('Security check failed');
+    }
+
+    // Sanitize inputs
+    $member_id = intval($_POST['member_id']);
+    $name = sanitize_text_field($_POST['name']);
+    $email = sanitize_email($_POST['email']);
+    $membership_type = sanitize_text_field($_POST['membership_type']);
+    
+    // Update the member in the database
+    $table_name = $wpdb->prefix . 'members';
+    $wpdb->update(
+        $table_name,
+        array(
+            'name' => $name,
+            'email' => $email,
+            'membership_type' => $membership_type,
+        ),
+        array('id' => $member_id),
+        array('%s', '%s', '%s'),
+        array('%d')
+    );
+
+    // Redirect back with a success message
+    wp_redirect(admin_url('admin.php?page=membership-plugin&success=true'));
+    exit;
+}
+add_action('admin_post_edit_member', 'mp_handle_edit_member');
+
+
+function mp_handle_delete_member() {
+    global $wpdb;
+
+    // Check if an ID is passed
+    if (isset($_GET['id']) && !empty($_GET['id'])) {
+        $id = intval($_GET['id']);
+        $table_name = $wpdb->prefix . 'members';
+        
+        // Delete the member from the database
+        $wpdb->delete($table_name, array('id' => $id), array('%d'));
+
+        // Redirect back to the admin page with a success message
+        wp_redirect(admin_url('admin.php?page=membership-plugin&deleted=true'));
+        exit;
+    }
+}
+add_action('admin_post_delete_member', 'mp_handle_delete_member');
