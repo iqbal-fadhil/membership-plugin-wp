@@ -109,20 +109,20 @@ function mp_admin_page() {
     <?php
 }
 
-function mp_create_membership_cpt() {
-    register_post_type('member', array(
-        'labels' => array(
-            'name' => __('Members'),
-            'singular_name' => __('Member')
-        ),
-        'public' => false,
-        'has_archive' => false,
-        'show_ui' => true,
-        'menu_icon' => 'dashicons-id-alt',
-        'supports' => array('title', 'editor', 'custom-fields')
-    ));
-}
-add_action('init', 'mp_create_membership_cpt');
+// function mp_create_membership_cpt() {
+//     register_post_type('member', array(
+//         'labels' => array(
+//             'name' => __('Members'),
+//             'singular_name' => __('Member')
+//         ),
+//         'public' => false,
+//         'has_archive' => false,
+//         'show_ui' => true,
+//         'menu_icon' => 'dashicons-id-alt',
+//         'supports' => array('title', 'editor', 'custom-fields')
+//     ));
+// }
+// add_action('init', 'mp_create_membership_cpt');
 
 function mp_install() {
     global $wpdb;
